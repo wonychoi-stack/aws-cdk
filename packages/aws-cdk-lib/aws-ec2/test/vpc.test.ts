@@ -2901,7 +2901,7 @@ describe('Subnet', () => {
 
     // THEN
     expect(subnet.availabilityZoneId).toEqual('use1-az1');
-    expect(subnet.availabilityZone).toEqual('');
+    expect(() => subnet.availabilityZone).toThrow('`availabilityZone` is not available when the subnet was created with `availabilityZoneId`');
   });
 
   test('subnet throws if both availabilityZone and availabilityZoneId are provided', () => {

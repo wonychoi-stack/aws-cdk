@@ -2155,9 +2155,22 @@ export class Subnet extends Resource implements ISubnet {
   }
 
   /**
-   * The Availability Zone the subnet is located in
+   * The Availability Zone the subnet is located in.
+   *
+   * @throws if the subnet was created with `availabilityZoneId` only. Use `availabilityZoneId` instead.
    */
-  public readonly availabilityZone: string;
+  public get availabilityZone(): string {
+    if (this._subnetAvailabilityZone === undefined) {
+      throw new ValidationError(
+        lit`SubnetAvailabilityZoneNotAvailable`,
+        '`availabilityZone` is not available when the subnet was created with `availabilityZoneId`. Use `availabilityZoneId` instead.',
+        this,
+      );
+    }
+    return this._subnetAvailabilityZone;
+  }
+
+  private readonly _subnetAvailabilityZone: string | undefined;
 
   /**
    * The Availability Zone ID of this subnet (e.g., `use1-az1`).
@@ -2247,7 +2260,7 @@ export class Subnet extends Resource implements ISubnet {
 
     Tags.of(this).add(NAME_TAG, this.node.path);
 
-    this.availabilityZone = props.availabilityZone ?? '';
+    this._subnetAvailabilityZone = props.availabilityZone;
     this.availabilityZoneId = props.availabilityZoneId;
     this.ipv4CidrBlock = props.cidrBlock;
     const subnet = new CfnSubnet(this, 'Subnet', {

@@ -1195,7 +1195,7 @@ describe('volume', () => {
 
     // THEN
     expect(volume.availabilityZoneId).toEqual('use1-az1');
-    expect(volume.availabilityZone).toEqual('');
+    expect(() => volume.availabilityZone).toThrow('`availabilityZone` is not available when the volume was created with `availabilityZoneId`');
   });
 
   test('volume throws if both availabilityZone and availabilityZoneId are provided', () => {

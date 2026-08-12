@@ -717,9 +717,10 @@ export class Volume extends VolumeBase {
   }
 
   public readonly volumeId: string;
-  public readonly availabilityZone: string;
   public readonly availabilityZoneId: string | undefined;
   public readonly encryptionKey?: IKey;
+
+  private readonly _availabilityZone: string | undefined;
 
   constructor(scope: Construct, id: string, props: VolumeProps) {
     super(scope, id, {
@@ -751,7 +752,7 @@ export class Volume extends VolumeBase {
     if (props.volumeName) Tags.of(resource).add('Name', props.volumeName);
 
     this.volumeId = resource.ref;
-    this.availabilityZone = props.availabilityZone ?? '';
+    this._availabilityZone = props.availabilityZone;
     this.availabilityZoneId = props.availabilityZoneId;
     this.encryptionKey = props.encryptionKey;
 
@@ -773,6 +774,22 @@ export class Volume extends VolumeBase {
         grant.principalStatement?.addActions('kms:ReEncrypt*');
       }
     }
+  }
+
+  /**
+   * The availability zone that the EBS Volume is contained within (ex: us-west-2a).
+   *
+   * @throws if the volume was created with `availabilityZoneId` only. Use `availabilityZoneId` instead.
+   */
+  public get availabilityZone(): string {
+    if (this._availabilityZone === undefined) {
+      throw new ValidationError(
+        lit`VolumeAvailabilityZoneNotAvailable`,
+        '`availabilityZone` is not available when the volume was created with `availabilityZoneId`. Use `availabilityZoneId` instead.',
+        this,
+      );
+    }
+    return this._availabilityZone;
   }
 
   protected validateProps(props: VolumeProps) {
