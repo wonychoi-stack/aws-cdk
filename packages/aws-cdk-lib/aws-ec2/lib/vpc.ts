@@ -95,6 +95,18 @@ export interface ISubnet extends IResource, ISubnetRef {
   readonly availabilityZone: string;
 
   /**
+   * The Availability Zone ID of the subnet (e.g., `use1-az1`).
+   *
+   * AZ IDs are consistent physical zone identifiers across all AWS accounts,
+   * unlike AZ names (e.g., `us-east-1a`) which are randomly mapped per account.
+   * Use AZ IDs when you need resources in the same physical zone across multiple
+   * AWS accounts.
+   *
+   * @default - No AZ ID information available
+   */
+  readonly availabilityZoneId?: string;
+
+  /**
    * The subnetId for this particular subnet
    * @attribute
    */
@@ -915,6 +927,16 @@ export interface SubnetAttributes {
    * @default - No AZ information, cannot use AZ selection features
    */
   readonly availabilityZone?: string;
+
+  /**
+   * The Availability Zone ID of the subnet (e.g., `use1-az1`).
+   *
+   * AZ IDs are consistent physical zone identifiers across all AWS accounts,
+   * unlike AZ names which are randomly mapped per account.
+   *
+   * @default - No AZ ID information
+   */
+  readonly availabilityZoneId?: string;
 
   /**
    * The IPv4 CIDR block associated with the subnet
@@ -2045,9 +2067,27 @@ function subnetTypeTagValue(type: SubnetType) {
 export interface SubnetProps {
 
   /**
-   * The availability zone for the subnet
+   * The availability zone for the subnet.
+   *
+   * Exactly one of `availabilityZone` or `availabilityZoneId` must be provided.
+   *
+   * @default - Must provide either availabilityZone or availabilityZoneId
    */
-  readonly availabilityZone: string;
+  readonly availabilityZone?: string;
+
+  /**
+   * The Availability Zone ID for the subnet (e.g., `use1-az1`).
+   *
+   * AZ IDs are consistent physical zone identifiers across all AWS accounts,
+   * unlike AZ names (e.g., `us-east-1a`) which are randomly mapped per account.
+   * Use this when you need resources in the same physical zone across multiple
+   * AWS accounts.
+   *
+   * Exactly one of `availabilityZone` or `availabilityZoneId` must be provided.
+   *
+   * @default - Must provide either availabilityZone or availabilityZoneId
+   */
+  readonly availabilityZoneId?: string;
 
   /**
    * The VPC which this subnet is part of
@@ -2120,6 +2160,16 @@ export class Subnet extends Resource implements ISubnet {
   public readonly availabilityZone: string;
 
   /**
+   * The Availability Zone ID of this subnet (e.g., `use1-az1`).
+   *
+   * Available when the subnet was created with `availabilityZoneId`.
+   * AZ IDs are consistent physical zone identifiers across all AWS accounts.
+   *
+   * @default - undefined if the subnet was created with `availabilityZone` only
+   */
+  public readonly availabilityZoneId?: string;
+
+  /**
    * @attribute
    */
   public readonly ipv4CidrBlock: string;
@@ -2178,16 +2228,33 @@ export class Subnet extends Resource implements ISubnet {
     // Enhanced CDK Analytics Telemetry
     addConstructMetadata(this, props);
 
+    if (props.availabilityZone && props.availabilityZoneId) {
+      throw new ValidationError(
+        lit`SubnetAvailabilityZoneMutuallyExclusive`,
+        "Cannot specify both 'availabilityZone' and 'availabilityZoneId'. Use one or the other.",
+        this,
+      );
+    }
+    if (!props.availabilityZone && !props.availabilityZoneId) {
+      throw new ValidationError(
+        lit`SubnetAvailabilityZoneRequired`,
+        "Must provide either 'availabilityZone' or 'availabilityZoneId'.",
+        this,
+      );
+    }
+
     Object.defineProperty(this, VPC_SUBNET_SYMBOL, { value: true });
 
     Tags.of(this).add(NAME_TAG, this.node.path);
 
-    this.availabilityZone = props.availabilityZone;
+    this.availabilityZone = props.availabilityZone ?? '';
+    this.availabilityZoneId = props.availabilityZoneId;
     this.ipv4CidrBlock = props.cidrBlock;
     const subnet = new CfnSubnet(this, 'Subnet', {
       vpcId: props.vpcId,
       cidrBlock: props.cidrBlock,
       availabilityZone: props.availabilityZone,
+      availabilityZoneId: props.availabilityZoneId,
       mapPublicIpOnLaunch: props.mapPublicIpOnLaunch,
       ipv6CidrBlock: props.ipv6CidrBlock,
       assignIpv6AddressOnCreation: props.assignIpv6AddressOnCreation,
@@ -2722,6 +2789,7 @@ class ImportedSubnet extends Resource implements ISubnet, IPublicSubnet, IPrivat
   public readonly subnetId: string;
   public readonly routeTable: IRouteTable;
   private readonly _availabilityZone?: string;
+  private readonly _availabilityZoneId?: string;
   private readonly _ipv4CidrBlock?: string;
 
   constructor(scope: Construct, id: string, attrs: SubnetAttributes) {
@@ -2753,6 +2821,7 @@ class ImportedSubnet extends Resource implements ISubnet, IPublicSubnet, IPrivat
 
     this._ipv4CidrBlock = attrs.ipv4CidrBlock;
     this._availabilityZone = attrs.availabilityZone;
+    this._availabilityZoneId = attrs.availabilityZoneId;
     this.subnetId = attrs.subnetId;
     this.routeTable = {
       // Forcing routeTableId to pretend non-null to maintain backwards-compatibility. See https://github.com/aws/aws-cdk/pull/3171
@@ -2771,6 +2840,13 @@ class ImportedSubnet extends Resource implements ISubnet, IPublicSubnet, IPrivat
       throw new ValidationError(lit`CannotReferenceSubnetSAvailability`, 'You cannot reference a Subnet\'s availability zone if it was not supplied. Add the availabilityZone when importing using Subnet.fromSubnetAttributes()', this);
     }
     return this._availabilityZone;
+  }
+
+  /**
+   * The Availability Zone ID of this subnet (e.g., `use1-az1`).
+   */
+  public get availabilityZoneId(): string | undefined {
+    return this._availabilityZoneId;
   }
 
   public get ipv4CidrBlock(): string {
